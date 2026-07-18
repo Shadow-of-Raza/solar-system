@@ -1,65 +1,137 @@
-import Image from "next/image";
+"use client";
+
+import dynamic from "next/dynamic";
+import { useState, useEffect, useCallback, useRef } from "react";
+
+const Scene = dynamic(() => import("@/components/Scene"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center w-full h-full">
+      <div className="loader" />
+    </div>
+  ),
+});
+
+const PLANET_NAMES = ["Sun", "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"];
 
 export default function Home() {
+  const [mounted, setMounted] = useState(false);
+  const [activePlanetIndex, setActivePlanetIndex] = useState(0);
+  const lastScrollTime = useRef<number>(0);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const transitionTo = useCallback(
+    (direction: "next" | "prev") => {
+      const now = Date.now();
+      // 1.2s cooldown to let the smooth 3D scroll complete
+      if (now - lastScrollTime.current < 1200) return;
+
+      const nextIndex =
+        direction === "next"
+          ? activePlanetIndex + 1
+          : activePlanetIndex - 1;
+
+      if (nextIndex < 0 || nextIndex >= PLANET_NAMES.length) return;
+
+      lastScrollTime.current = now;
+      setActivePlanetIndex(nextIndex);
+    },
+    [activePlanetIndex]
+  );
+
+  // Handle keyboard events
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+        transitionTo("next");
+      } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+        transitionTo("prev");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [transitionTo]);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <main 
+      className="relative w-full h-screen overflow-hidden"
+      style={{
+        background: "radial-gradient(circle at 0% 50%, rgba(255, 68, 0, 0.28) 0%, transparent 45%), radial-gradient(circle at 60% 55%, rgba(0, 180, 160, 0.2) 0%, transparent 55%), radial-gradient(circle at 100% 20%, rgba(0, 102, 255, 0.22) 0%, transparent 50%), radial-gradient(circle at 30% 85%, rgba(130, 30, 180, 0.15) 0%, transparent 45%), #030010"
+      }}
+    >
+      {/* 3D Canvas — full viewport */}
+      <div className="absolute inset-0 z-0">
+        {mounted && (
+          <Scene
+            activePlanetIndex={activePlanetIndex}
+            onSelectPlanet={(index) => {
+              const now = Date.now();
+              if (now - lastScrollTime.current < 1200) return;
+              lastScrollTime.current = now;
+              setActivePlanetIndex(index);
+            }}
+          />
+        )}
+      </div>
+
+      {/* Planet name — centered at bottom with fade transition */}
+      <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 text-center pointer-events-none">
+        {PLANET_NAMES.map((name, index) => (
+          <h1
+            key={name}
+            className={`absolute bottom-0 left-1/2 -translate-x-1/2 text-5xl md:text-7xl font-bold text-white/90 whitespace-nowrap transition-all duration-700 ease-out ${
+              index === activePlanetIndex
+                ? "opacity-100 translate-y-0 scale-100"
+                : "opacity-0 translate-y-8 scale-95 pointer-events-none"
+            }`}
+          >
+            {name}
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        ))}
+      </div>
+
+      {/* Navigation dots */}
+      <div className="absolute right-8 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-3">
+        {PLANET_NAMES.map((name, index) => (
+          <button
+            key={name}
+            onClick={() => {
+              const now = Date.now();
+              if (now - lastScrollTime.current < 1200) return;
+              lastScrollTime.current = now;
+              setActivePlanetIndex(index);
+            }}
+            className={`group relative w-3 h-3 rounded-full transition-all duration-300 ${
+              index === activePlanetIndex
+                ? "bg-white scale-125 shadow-[0_0_8px_rgba(255,255,255,0.8)]"
+                : "bg-white/25 hover:bg-white/50"
+            }`}
+            title={name}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            <span
+              className={`absolute right-6 top-1/2 -translate-y-1/2 text-xs text-white/60 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200`}
+            >
+              {name}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Scroll hint */}
+      <div
+        className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none transition-opacity duration-1000 ${
+          mounted ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        <span className="text-[10px] tracking-[0.3em] uppercase text-white/20">
+          Click a celestial body to focus | Drag to rotate 360° | Scroll to Zoom
+        </span>
+      </div>
+    </main>
   );
 }
+
